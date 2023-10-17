@@ -38,6 +38,9 @@ export class ChatGPTApi implements LLMApi {
     if (openaiUrl.endsWith("/")) {
       openaiUrl = openaiUrl.slice(0, openaiUrl.length - 1);
     }
+    if (openaiUrl.endsWith("chat")) {
+      return openaiUrl
+    }
     if (!openaiUrl.startsWith("http") && !openaiUrl.startsWith(apiPath)) {
       openaiUrl = "https://" + openaiUrl;
     }
@@ -61,16 +64,33 @@ export class ChatGPTApi implements LLMApi {
         model: options.config.model,
       },
     };
+    let openaiUrl = useAccessStore.getState().openaiUrl;
+    let requestPayload = {}
+    if (openaiUrl.endsWith("chat")) {
+      requestPayload = {
+        query: "pp贷是什么呢?",
+        knowledge_base_name: "samples",
+        top_k: modelConfig.top_p,
+        score_threshold: 1,
+        history: messages,
+        stream: false,
+        model_name: modelConfig.model,
+        temperature: modelConfig.temperature,
+        prompt_name: "knowledge_base_chat",
+        local_doc_url: false
+      };
+    } else {
+      requestPayload = {
+        messages,
+        stream: options.config.stream,
+        model: modelConfig.model,
+        temperature: modelConfig.temperature,
+        presence_penalty: modelConfig.presence_penalty,
+        frequency_penalty: modelConfig.frequency_penalty,
+        top_p: modelConfig.top_p,
+      };
+    }
 
-    const requestPayload = {
-      messages,
-      stream: options.config.stream,
-      model: modelConfig.model,
-      temperature: modelConfig.temperature,
-      presence_penalty: modelConfig.presence_penalty,
-      frequency_penalty: modelConfig.frequency_penalty,
-      top_p: modelConfig.top_p,
-    };
 
     console.log("[Request] openai payload: ", requestPayload);
 
@@ -117,10 +137,11 @@ export class ChatGPTApi implements LLMApi {
             );
 
             if (contentType?.startsWith("text/plain")) {
+              console.log(2)
               responseText = await res.clone().text();
               return finish();
             }
-
+            console.log(res)
             if (
               !res.ok ||
               !res.headers
@@ -128,6 +149,7 @@ export class ChatGPTApi implements LLMApi {
                 ?.startsWith(EventStreamContentType) ||
               res.status !== 200
             ) {
+              console.log(123)
               const responseTexts = [responseText];
               let extraInfo = await res.clone().text();
               try {
@@ -149,6 +171,7 @@ export class ChatGPTApi implements LLMApi {
             }
           },
           onmessage(msg) {
+            console.log(msg)
             if (msg.data === "[DONE]" || finished) {
               return finish();
             }
@@ -165,6 +188,7 @@ export class ChatGPTApi implements LLMApi {
             }
           },
           onclose() {
+            console.log("onclose")
             finish();
           },
           onerror(e) {
@@ -175,6 +199,7 @@ export class ChatGPTApi implements LLMApi {
         });
       } else {
         const res = await fetch(chatPath, chatPayload);
+        console.log('res', res)
         clearTimeout(requestTimeoutId);
 
         const resJson = await res.json();
